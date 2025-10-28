@@ -1,16 +1,6 @@
-using UnityEngine;
-
-public class SwapCommand : MonoBehaviour
+public class SwapCommand
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    public Tile tileA;
+    public Tile tileB;
+    public void Execute(Board board) => board.Swap(tileA, tileB);
 }
