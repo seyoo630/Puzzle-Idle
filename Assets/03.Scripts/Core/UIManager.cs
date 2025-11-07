@@ -88,14 +88,15 @@ public class UIManager : MonoBehaviour
 
     public void UpdateMoves(int moves)
     {
+        moveCount = moves;
         moveText.text = $"{moves} MOVES";
         moveText.transform.DOPunchScale(Vector3.one * 0.15f, 0.25f, 6, 0.6f);
 
-        // 행동이 0이 되면 자동으로 적 턴으로 전환
-        if (moves <= 0)
+        if (moveCount <= 0)
         {
             moveText.text = "ENEMY MOVES";
-            TurnNotifier.Instance.PlayEnemyTurn();
+            if (BubbleBlockSpawner.Instance != null)
+                BubbleBlockSpawner.Instance.DestroyAllBubbles();
         }
     }
 
