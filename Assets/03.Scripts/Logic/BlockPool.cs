@@ -76,12 +76,21 @@ public class BlockPool : MonoBehaviour
             return null;
         }
 
-        GameObject obj = poolDict[type].Count > 0 ? poolDict[type].Dequeue() : Instantiate(poolNodes[0].prefab, transform);
+        GameObject obj = poolDict[type].Count > 0
+            ? poolDict[type].Dequeue()
+            : Instantiate(poolNodes[(int)type].prefab, transform);
 
         obj.SetActive(true);
         obj.transform.localPosition = pos;
+        obj.transform.localScale = Vector3.one * 0.8f;
 
-        Debug.Log($"풀에 등록된 블록 소환: {obj}");
+        Block block = obj.GetComponent<Block>();
+        if (block != null)
+        {
+            block.Init(type, block.gridPos, block.currentTile);
+            block.SetTransparency(1f);
+        }
+
         return obj;
     }
 

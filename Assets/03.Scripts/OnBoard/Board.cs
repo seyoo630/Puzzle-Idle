@@ -1,5 +1,7 @@
+using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 
 public class Board : MonoBehaviour
@@ -13,13 +15,26 @@ public class Board : MonoBehaviour
 
     [Header("References")]
     public BlockPool blockPool;
+    [SerializeField] private BubbleBlockSpawner bubbleSpawner;
+
+    [Header("Board State")]
+    public bool isProcessing = false;
 
     public Tile[,] tiles;
 
-    [Header("Swap Settings")]
-    public bool isSwapping = false;
+    // 하위 모듈
+    private MatchFinder matchFinder;
+    private GravityController gravity;
+    private SwapHandler swapper;
 
-    /*보드 생성 관련 코드, 초기 블록 및 타일 생성*/
+    private void Awake()
+    {
+        matchFinder = new MatchFinder(this);
+        gravity = new GravityController(this);
+        swapper = new SwapHandler(this);
+    }
+
+    /* 초기 보드 생성 */
     public void GenerateBoard()
     {
         if (tilePrefab == null || blockPool == null)
@@ -29,8 +44,8 @@ public class Board : MonoBehaviour
         }
 
         tiles = new Tile[width, height];
-
         SpriteRenderer tileRenderer = tilePrefab.GetComponent<SpriteRenderer>();
+
         if (tileRenderer == null)
         {
             Debug.LogError("Tile Prefab에 SpriteRenderer가 없습니다.");
@@ -38,10 +53,13 @@ public class Board : MonoBehaviour
         }
 
         Vector2 tileSize = tileRenderer.bounds.size;
-        float spacingX = tileSize.x * 0.90f; 
-        float spacingY = tileSize.y * 0.85f; 
+        float spacingX = tileSize.x * 0.90f;
+        float spacingY = tileSize.y * 0.85f;
 
-        Vector3 startOffset = new Vector3(-((width - 1) * spacingX) / 2f + transform.position.x, -((height - 1) * spacingY) / 2f + transform.position.y, 0);
+        Vector3 startOffset = new Vector3(
+            -((width - 1) * spacingX) / 2f + transform.position.x,
+            -((height - 1) * spacingY) / 2f + transform.position.y,
+            0);
 
         for (int y = 0; y < height; y++)
         {
@@ -53,106 +71,107 @@ public class Board : MonoBehaviour
                 tile.Init(new Vector2Int(x, y));
                 tiles[x, y] = tile;
 
-                BlockType randType = (BlockType)Random.Range(0, System.Enum.GetValues(typeof(BlockType)).Length);
+                BlockType randType;
+                int safety = 0;
+
+                do
+                {
+                    randType = (BlockType)Random.Range(0, System.Enum.GetValues(typeof(BlockType)).Length);
+                    safety++;
+                    if (safety > 10) break;
+                } while (matchFinder.WouldCauseMatch(x, y, randType));
+
                 GameObject blockObj = blockPool.GetNodeFromPool(randType, pos);
                 Block block = blockObj.GetComponent<Block>();
-                block.Init(randType, new Vector2Int(x, y));
+                block.Init(randType, new Vector2Int(x, y), tile);
 
                 blockObj.transform.position = tileObj.transform.position;
                 tile.currentBlock = block;
             }
         }
-
-        Debug.Log($"보드 생성 완료: {width}x{height}");
     }
 
+    /* 인접 타일 반환 */
     public List<Tile> GetAdjacentTiles(Tile tile)
     {
-        List<Tile> neighbors = new List<Tile>();
+        List<Tile> neighbors = new();
+        int[,] offsets = { { 0, 1 }, { 0, -1 }, { -1, 0 }, { 1, 0 } };
 
-        int[,] offsets = new int[,] { { 0, 1 }, { 0, -1 }, { -1, 0 }, { 1, 0 } };
-
-        for (int i = 0; i < offsets.GetLength(0); i++)
+        for (int i = 0; i < 4; i++)
         {
             int nx = tile.gridPos.x + offsets[i, 0];
             int ny = tile.gridPos.y + offsets[i, 1];
 
-            if (nx >= 0 && nx < width && ny >= 0 && ny < height)
-            {
-                if (tiles[nx, ny] != null)
-                    neighbors.Add(tiles[nx, ny]);
-            }
+            if (nx >= 0 && nx < width && ny >= 0 && ny < height && tiles[nx, ny] != null)
+                neighbors.Add(tiles[nx, ny]);
         }
         return neighbors;
     }
 
-    /*보드 내 스왑 관련 로직 정의*/
-    public void Swap(Tile tileA, Tile tileB)
-    {
-        if (tileA == null || tileB == null) return;
-        if (isSwapping) return;
+    /* 블록 스왑 요청 */
+    public void SwapBlocks(Tile tileA, Tile tileB)
+        => swapper.SwapBlocks(tileA, tileB);
 
-        if (Mathf.Abs(tileA.gridPos.x - tileB.gridPos.x) + Mathf.Abs(tileA.gridPos.y - tileB.gridPos.y) != 1)
+    /* 매치 판정 및 처리 */
+    public void CheckMatch()
+    {
+        isProcessing = true;
+        var matchDict = matchFinder.FindMatches();
+        if (matchDict.Count == 0)
         {
-            Debug.LogWarning("인접하지 않은 타일 스왑 시도입니다");
+            isProcessing = false;
             return;
         }
-        StartCoroutine(SwapRoutine(tileA, tileB));
+
+        StringBuilder log = new();
+        log.Append("매치 발견: ");
+        foreach (var kvp in matchDict)
+        {
+            log.Append($"{kvp.Key} {kvp.Value.Count}개 / ");
+        }
+        Debug.Log(log.ToString());
+
+        StartCoroutine(HandleMatches(matchDict));
     }
 
-    private IEnumerator SwapRoutine(Tile tileA, Tile tileB)
+
+    private IEnumerator HandleMatches(Dictionary<BlockType, HashSet<Vector2Int>> matchDict)
     {
-        isSwapping = true;
+        List<Block> matchedBlocks = new();
 
-        Block blockA = tileA.currentBlock;
-        Block blockB = tileB.currentBlock;
-
-        tileA.currentBlock = blockB;
-        tileB.currentBlock = blockA;
-
-        Vector2Int tempPos = blockA.gridPos;
-        blockA.gridPos = blockB.gridPos;
-        blockB.gridPos = tempPos;
-
-        Vector3 posA = tileA.transform.position;
-        Vector3 posB = tileB.transform.position;
-
-        float moveTime = 0.15f;
-        float t = 0f;
-
-        while (t < 1f)
+        foreach (var kvp in matchDict)
         {
-            t += Time.deltaTime / moveTime;
-            blockA.transform.position = Vector3.Lerp(posB, posA, t);
-            blockB.transform.position = Vector3.Lerp(posA, posB, t);
-            yield return null;
+            foreach (var pos in kvp.Value)
+            {
+                if (tiles[pos.x, pos.y].currentBlock != null)
+                    matchedBlocks.Add(tiles[pos.x, pos.y].currentBlock);
+            }
         }
 
-        blockA.transform.position = posA;
-        blockB.transform.position = posB;
+        yield return StartCoroutine(swapper.PlayMatch(matchedBlocks));
 
-        isSwapping = false;
+        foreach (var kvp in matchDict)
+        {
+            if (bubbleSpawner != null)
+                bubbleSpawner.SpawnBubble(kvp.Key, kvp.Value.Count);
+        }
 
-        yield return StartCoroutine(CheckMatch(tileA, tileB));
+        yield return StartCoroutine(gravity.ApplyGravity());
     }
 
-    private IEnumerator CheckMatch(Tile tileA, Tile tileB)
+    public bool CheckMatchWithResult()
     {
-        bool matchFound = true;
+        var matchDict = matchFinder.FindMatches();
 
-        if (!matchFound)
+        if (matchDict.Count == 0)
         {
-            Debug.Log("매치 실패! 스왑 되돌림");
-            yield return SwapBack(tileA, tileB);
+            return false;
         }
-        else
-        {
-            Debug.Log("매치 성공!");
-        }
-    }
 
-    private IEnumerator SwapBack(Tile tileA, Tile tileB)
-    {
-        yield return SwapRoutine(tileA, tileB);
+        var nextMoveCnt = --UIManager.Instance.moveCount;
+
+        UIManager.Instance.UpdateMoves(nextMoveCnt);
+        StartCoroutine(HandleMatches(matchDict));
+        return true;
     }
 }

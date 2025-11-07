@@ -24,11 +24,20 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
+
         blockPool.CreateNodes();
         blockPool.CreatePool();
 
         board.GenerateBoard();
-        
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.InitUI();
+        }
+
+        if (TurnNotifier.Instance != null)
+            TurnNotifier.Instance.PlayPlayerTurn();
+
     }
 
 }
