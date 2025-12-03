@@ -80,7 +80,9 @@ public class GravityController
 
         yield return new WaitForSeconds(0.35f);
         BoardUtils.SnapAll(board);
+        board.CheckBoardPlayable();
         board.isProcessing = false;
         board.CheckMatch();
+
     }
 }

@@ -42,6 +42,13 @@ public class TurnNotifier : MonoBehaviour
         });
     }
 
+    public void PlayPlayerAttack()
+    {
+        UIManager.Instance.moveText.text = "PLAYER ATTACK";
+        PlayerAttackManager.Instance.StartPlayerAttack();
+
+    }
+
     // 적 턴 시작
     public void PlayEnemyTurn()
     {

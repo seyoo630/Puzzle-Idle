@@ -91,13 +91,6 @@ public class UIManager : MonoBehaviour
         moveCount = moves;
         moveText.text = $"{moves} MOVES";
         moveText.transform.DOPunchScale(Vector3.one * 0.15f, 0.25f, 6, 0.6f);
-
-        if (moveCount <= 0)
-        {
-            moveText.text = "ENEMY MOVES";
-            if (BubbleBlockSpawner.Instance != null)
-                BubbleBlockSpawner.Instance.DestroyAllBubbles();
-        }
     }
 
     public void ResetPlayerMoves()
@@ -105,6 +98,7 @@ public class UIManager : MonoBehaviour
         moveCount = 3;
         moveText.text = $"{moveCount} MOVES";
         TurnNotifier.Instance.PlayPlayerTurn();
+
     }
 
     // ------------------------ ÁøÇàµµ & HP ------------------------

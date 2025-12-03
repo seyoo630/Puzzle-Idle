@@ -1,6 +1,7 @@
 using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 
@@ -26,6 +27,9 @@ public class Board : MonoBehaviour
     private MatchFinder matchFinder;
     private GravityController gravity;
     private SwapHandler swapper;
+
+    private int comboCount = 0;
+    private bool comboActive = false;
 
     private void Awake()
     {
@@ -89,6 +93,7 @@ public class Board : MonoBehaviour
                 tile.currentBlock = block;
             }
         }
+        CheckBoardPlayable();
     }
 
     /* 인접 타일 반환 */
@@ -119,6 +124,8 @@ public class Board : MonoBehaviour
         var matchDict = matchFinder.FindMatches();
         if (matchDict.Count == 0)
         {
+            comboActive = false;
+            comboCount = 0;
             isProcessing = false;
             return;
         }
@@ -130,7 +137,18 @@ public class Board : MonoBehaviour
             log.Append($"{kvp.Key} {kvp.Value.Count}개 / ");
         }
         Debug.Log(log.ToString());
+        if (!comboActive)
+        {
+            comboActive = true;
+            comboCount = 1;    // 첫 매치 = 콤보 1
+        }
+        else
+        {
+            comboCount++;      // 연쇄 매치 = 증가
+        }
 
+        if (comboCount >= 2)
+            BoardNotifier.Instance.ShowCombo(comboCount);
         StartCoroutine(HandleMatches(matchDict));
     }
 
@@ -157,6 +175,20 @@ public class Board : MonoBehaviour
         }
 
         yield return StartCoroutine(gravity.ApplyGravity());
+
+
+        if (matchFinder.FindMatches().Count == 0)
+        {
+
+            if (UIManager.Instance.moveCount <= 0)
+            {
+                yield return new WaitForEndOfFrame();  
+                BubbleBlockSpawner.Instance.DestroyAllBubbles();
+            }
+
+            GameManager.Instance.board.isProcessing = false;
+            yield break;
+        }
     }
 
     public bool CheckMatchWithResult()
@@ -168,10 +200,88 @@ public class Board : MonoBehaviour
             return false;
         }
 
+        comboActive = true;
+        comboCount = 1;
+
         var nextMoveCnt = --UIManager.Instance.moveCount;
 
         UIManager.Instance.UpdateMoves(nextMoveCnt);
         StartCoroutine(HandleMatches(matchDict));
         return true;
+    }
+
+    public void CheckBoardPlayable()
+    {
+        if (!HasAvailableMoves())
+        {
+            comboActive = false;
+            comboCount = 0;
+            Debug.Log("Dead board detected! Shuffle executed.");
+            ShuffleBoard();
+            BoardNotifier.Instance.ShowShuffle();   // ★ Shuffle 표시
+        }
+    }
+
+    public bool HasAvailableMoves()
+    {
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Tile a = tiles[x, y];
+                foreach (Tile b in GetAdjacentTiles(a))
+                {
+                    SwapTileContents(a, b);   // 임시 스왑
+                    bool matchPossible = matchFinder.FindMatches().Count > 0;
+                    SwapTileContents(a, b);   // 복귀
+
+                    if (matchPossible)
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void SwapTileContents(Tile a, Tile b)
+    {
+        Block ba = a.currentBlock;
+        Block bb = b.currentBlock;
+
+        a.currentBlock = bb;
+        b.currentBlock = ba;
+
+        if (bb != null) { bb.gridPos = a.gridPos; bb.currentTile = a; }
+        if (ba != null) { ba.gridPos = b.gridPos; ba.currentTile = b; }
+    }
+
+    public void ShuffleBoard()
+    {
+        List<Block> all = new();
+
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                all.Add(tiles[x, y].currentBlock);
+
+        for (int i = all.Count - 1; i > 0; i--)
+        {
+            int r = Random.Range(0, i + 1);
+            (all[i], all[r]) = (all[r], all[i]);
+        }
+
+        int index = 0;
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                Block b = all[index++];
+                Tile t = tiles[x, y];
+
+                t.currentBlock = b;
+                b.currentTile = t;
+                b.gridPos = t.gridPos;
+                b.transform.position = t.transform.position;
+            }
+        }
     }
 }

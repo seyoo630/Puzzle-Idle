@@ -34,6 +34,26 @@ public class SPUM_Prefabs : MonoBehaviour
     public List<AnimationClip> DEBUFF_List = new();
     public List<AnimationClip> DEATH_List = new();
     public List<AnimationClip> OTHER_List = new();
+
+    public void Awake()
+    {
+        OverrideControllerInit();
+        PopulateAnimationLists();
+        BuildStateAnimationPairs();
+    }
+
+    public void BuildStateAnimationPairs()
+    {
+        StateAnimationPairs = new Dictionary<string, List<AnimationClip>>();
+
+        StateAnimationPairs["IDLE"] = IDLE_List;
+        StateAnimationPairs["MOVE"] = MOVE_List;
+        StateAnimationPairs["ATTACK"] = ATTACK_List;
+        StateAnimationPairs["DAMAGED"] = DAMAGED_List;
+        StateAnimationPairs["DEBUFF"] = DEBUFF_List;
+        StateAnimationPairs["DEATH"] = DEATH_List;
+        StateAnimationPairs["OTHER"] = OTHER_List;
+    }
     public void OverrideControllerInit()
     {
         Animator animator = _anim;
