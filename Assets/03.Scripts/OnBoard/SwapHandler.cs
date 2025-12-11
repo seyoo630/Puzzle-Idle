@@ -101,7 +101,7 @@ public class SwapHandler
 
         BoardUtils.SnapTiles(new List<Tile> { tileA, tileB });
         board.isProcessing = false;
-
+        GameManager.Instance.UnlockInput();
     }
 
 }

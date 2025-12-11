@@ -30,6 +30,7 @@ public class TurnNotifier : MonoBehaviour
     // 플레이어 턴 시작
     public void PlayPlayerTurn()
     {
+        GameManager.Instance.UnlockInput();
         Color playerColor;
         if (!ColorUtility.TryParseHtmlString("#FFAEA5", out playerColor))
             playerColor = Color.white;
@@ -44,14 +45,19 @@ public class TurnNotifier : MonoBehaviour
 
     public void PlayPlayerAttack()
     {
+        GameManager.Instance.LockInput();
         UIManager.Instance.moveText.text = "PLAYER ATTACK";
-        PlayerAttackManager.Instance.StartPlayerAttack();
+        if (PlayerAttackManager.Instance != null)
+            PlayerAttackManager.Instance.StartPlayerAttack();
+        else
+            PlayEnemyTurn();
 
     }
 
     // 적 턴 시작
     public void PlayEnemyTurn()
     {
+        GameManager.Instance.LockInput();
         turnText.text = "ENEMY TURN";
         PlayTurnAnimation(new Color(1f, 0.4f, 0.4f), () =>
         {

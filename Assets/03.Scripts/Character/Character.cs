@@ -4,9 +4,13 @@ using System.Collections;
 
 public abstract class Character : MonoBehaviour
 {
+    [Header("Status")]
     public int maxHP = 100;
+    public int currentHP;
 
-    public Transform attackTarget;
+    [Header("Combat Settings")]
+    public Transform attackTarget; // 공격 대상
+    public float attackAnimDelay = 0.3f;
 
     public GameObject projectilePrefab;
     public Transform projectileSpawnPoint;
@@ -18,8 +22,10 @@ public abstract class Character : MonoBehaviour
     public int debuffTurns = 3;
 
     public GameObject ultimateBuffVFX;
+    public GameObject hitEffectPrefab;
 
     protected SPUM_Prefabs anim;
+    protected Animator _animator;
 
     protected bool isUltimateBuffActive = false;
     protected int remainUltTurns = 0;
@@ -30,6 +36,9 @@ public abstract class Character : MonoBehaviour
     protected virtual void Awake()
     {
         anim = GetComponent<SPUM_Prefabs>();
+        if (anim != null) _animator = anim._anim;
+
+        currentHP = maxHP;
 
         selfBuffProcessor = new AttackEffectProcessor();
         debuffProcessor = new AttackEffectProcessor();
@@ -48,9 +57,13 @@ public abstract class Character : MonoBehaviour
         if (count >= 6)
             ActivateUltimateBuff();
 
+        PlayAnimation("2_Attack");
+
+        yield return new WaitForSeconds(attackAnimDelay);
+
         for (int i = 0; i < count; i++)
         {
-            SpawnProjectile();
+            SpawnProjectile(count);
             yield return new WaitForSeconds(projectileDelay);
         }
 
@@ -61,8 +74,10 @@ public abstract class Character : MonoBehaviour
             selfBuffProcessor.ApplyEffects(transform);
     }
 
-    protected virtual void SpawnProjectile()
+    protected virtual void SpawnProjectile(int comboCount)
     {
+        if (attackTarget == null) return;
+
         Vector3 start = projectileSpawnPoint.position;
         Vector3 end = attackTarget.position;
 
@@ -76,9 +91,70 @@ public abstract class Character : MonoBehaviour
 
         proj.transform.DOMove(end, t)
             .SetEase(Ease.Linear)
-            .OnComplete(() => Destroy(proj));
+            .OnComplete(() => {
+
+                // --- [여기서부터 타격감 코드 추가] ---
+
+                // 1. 타격감 계수 (콤보가 높을수록 화면이 더 많이 흔들림)
+                float impactPower = 1.0f + (comboCount * 0.2f);
+
+                // 2. 히트 스탑 (시간 정지)
+                // 콤보가 높으면 약간 더 길게 멈춤
+                GameFeelManager.Instance.DoHitStop(1.0f + (comboCount * 0.1f));
+
+                // 3. 카메라 쉐이크
+                GameFeelManager.Instance.ShakeCamera(impactPower);
+
+                // 4. 타겟 반응 (넉백 & 플래시)
+                GameFeelManager.Instance.ApplyImpactToTarget(attackTarget, dir);
+
+                // 5. 파티클(이펙트) 생성 (프리팹이 있다면)
+                Instantiate(hitEffectPrefab, attackTarget.position, Quaternion.identity);
+
+                // --- [타격감 코드 끝] ---
+
+                Character targetChar = attackTarget.GetComponent<Character>();
+                if (targetChar != null)
+                {
+                    // 데미지 공식은 기획에 따라 변경 (여기선 예시로 콤보 * 10)
+                    int damageAmount = comboCount * 10;
+                    targetChar.TakeDamage(damageAmount);
+
+                }
+                Destroy(proj);
+            });
     }
 
+    public void TakeDamage(int damage)
+    {
+        if (currentHP <= 0) return; 
+
+        currentHP -= damage;
+        Debug.Log($"{name} took {damage} damage! HP: {currentHP}");
+
+        PlayAnimation("3_Damaged"); 
+
+        if (currentHP <= 0)
+        {
+            Die();
+        }
+    }
+
+    protected virtual void Die()
+    {
+        currentHP = 0;
+        PlayAnimation("4_Death"); 
+      
+        Debug.Log($"{name} has died.");
+    }
+
+    protected void PlayAnimation(string triggerName)
+    {
+        if (_animator != null)
+        {            
+            _animator.SetTrigger(triggerName);
+        }
+    }
     protected void ActivateUltimateBuff()
     {
         isUltimateBuffActive = true;

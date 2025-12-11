@@ -127,6 +127,7 @@ public class Board : MonoBehaviour
             comboActive = false;
             comboCount = 0;
             isProcessing = false;
+            GameManager.Instance.UnlockInput();
             return;
         }
 
@@ -179,14 +180,23 @@ public class Board : MonoBehaviour
 
         if (matchFinder.FindMatches().Count == 0)
         {
-
             if (UIManager.Instance.moveCount <= 0)
             {
-                yield return new WaitForEndOfFrame();  
-                BubbleBlockSpawner.Instance.DestroyAllBubbles();
-            }
+                // ★ 1. Moves를 다 씀 -> 턴 종료 프로세스 시작
+                yield return new WaitForEndOfFrame();
+                if (BubbleBlockSpawner.Instance != null)
+                    BubbleBlockSpawner.Instance.DestroyAllBubbles();
 
-            GameManager.Instance.board.isProcessing = false;
+                GameManager.Instance.board.isProcessing = false;
+
+
+                TurnNotifier.Instance.PlayPlayerAttack();
+            }
+            else
+            {
+                GameManager.Instance.board.isProcessing = false;
+                GameManager.Instance.UnlockInput();
+            }
             yield break;
         }
     }
@@ -206,6 +216,10 @@ public class Board : MonoBehaviour
         var nextMoveCnt = --UIManager.Instance.moveCount;
 
         UIManager.Instance.UpdateMoves(nextMoveCnt);
+
+        GameManager.Instance.LockInput();
+
+
         StartCoroutine(HandleMatches(matchDict));
         return true;
     }

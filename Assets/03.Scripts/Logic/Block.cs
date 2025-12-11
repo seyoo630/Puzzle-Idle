@@ -49,7 +49,7 @@ public class Block : MonoBehaviour
 
     private void OnMouseDown()
     {
-        if (GameManager.Instance.board.isProcessing)
+        if (GameManager.Instance.IsInputLocked)
             return;
 
         if (currentTile == null)
@@ -150,6 +150,7 @@ public class Block : MonoBehaviour
 
     private IEnumerator PlaySwap()
     {
+        GameManager.Instance.LockInput();
         ResetPreview();
         SetTransparency(1f);
 
@@ -159,6 +160,7 @@ public class Block : MonoBehaviour
         {
             transform.DOMove(originalWorldPos, 0.15f).SetEase(Ease.OutQuad);
             GameManager.Instance.board.isProcessing = false;
+            GameManager.Instance.UnlockInput();
             yield break;
         }
 
@@ -168,6 +170,7 @@ public class Block : MonoBehaviour
             Debug.LogWarning("Swap 대상 블록이 존재하지 않습니다.");
             transform.DOMove(originalWorldPos, 0.15f).SetEase(Ease.OutQuad);
             GameManager.Instance.board.isProcessing = false;
+            GameManager.Instance.UnlockInput();
             yield break;
         }
 

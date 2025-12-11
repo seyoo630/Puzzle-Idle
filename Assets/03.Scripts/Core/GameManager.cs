@@ -8,6 +8,8 @@ public class GameManager : MonoBehaviour
     public Board board;
     public BlockPool blockPool;
 
+    public bool IsInputLocked { get; private set; } = false;
+
     private void Awake()
     {
         if(Instance != null && Instance != this)
@@ -38,6 +40,18 @@ public class GameManager : MonoBehaviour
         if (TurnNotifier.Instance != null)
             TurnNotifier.Instance.PlayPlayerTurn();
 
+    }
+
+    public void LockInput()
+    {
+        IsInputLocked = true;
+        Debug.Log("Input Locked");
+    }
+
+    public void UnlockInput()
+    {
+        IsInputLocked = false;
+        Debug.Log("Input Unlocked");
     }
 
 }
